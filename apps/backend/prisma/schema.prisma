@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  FARM_OWNER
+  MANAGER
+  AGRONOMIST
+  WORKER
+  CUSTOMER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role     @default(WORKER)
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  farmsOwned    Farm[]               @relation("FarmOwner")
+  tasks         Task[]               @relation("TaskAssignee")
+  orders        MarketplaceOrder[]   @relation("OrderCustomer")
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Farm {
+  id          String   @id @default(uuid())
+  name        String
+  location    String
+  ownerId     String
+  owner       User     @relation("FarmOwner", fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  plots       Plot[]
+}
+
+model Plot {
+  id          String   @id @default(uuid())
+  name        String
+  areaSize    Float    // in hectares
+  farmId      String
+  farm        Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  
+  crops       Crop[]
+  sensors     IotSensor[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Crop {
+  id          String   @id @default(uuid())
+  name        String
+  variety     String?
+  plantedAt   DateTime
+  expectedYield Float? // expected kg
+  status      String   @default("PLANTED") // PLANTED, GROWING, HARVESTING, HARVESTED
+  plotId      String
+  plot        Plot     @relation(fields: [plotId], references: [id], onDelete: Cascade)
+  
+  activities  ActivityLog[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  type        String   // FERTILIZER, IRRIGATION, PESTICIDE, OBSERVATION
+  description String
+  date        DateTime @default(now())
+  cropId      String
+  crop        Crop     @relation(fields: [cropId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  dueDate     DateTime
+  status      String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  assigneeId  String?
+  assignee    User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model IotSensor {
+  id          String   @id @default(uuid())
+  deviceMac   String   @unique
+  type        String   // SOIL_MOISTURE, TEMPERATURE, HUMIDITY, PH
+  plotId      String
+  plot        Plot     @relation(fields: [plotId], references: [id], onDelete: Cascade)
+  
+  readings    IotReading[]
+  createdAt   DateTime @default(now())
+}
+
+model IotReading {
+  id          String   @id @default(uuid())
+  sensorId    String
+  sensor      IotSensor @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+  value       Float
+  recordedAt  DateTime @default(now())
+}
+
+model MarketplaceProduct {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  stock       Int
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  orderItems  OrderItem[]
+}
+
+model MarketplaceOrder {
+  id          String   @id @default(uuid())
+  customerId  String
+  customer    User     @relation("OrderCustomer", fields: [customerId], references: [id])
+  totalAmount Float
+  status      String   @default("PENDING") // PENDING, PAID, SHIPPED, DELIVERED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  order       MarketplaceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     MarketplaceProduct @relation(fields: [productId], references: [id])
+  quantity    Int
+  priceAtTime Float
+}
